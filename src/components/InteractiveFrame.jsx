@@ -3,7 +3,7 @@ import { FRAMES, getLayout, getCanvasSize, BRAND_NAME } from '../lib/constants';
 import {
   getDisplaySlots,
   getStripDividerPercent,
-  getBrandMarkMetrics,
+  getBrandMarks,
 } from '../lib/layout';
 import { getFilterStyle } from '../lib/filters';
 import {
@@ -44,7 +44,7 @@ export default function InteractiveFrame({
   const { width, height } = getCanvasSize(layoutId);
   const slots = getDisplaySlots(layoutId, photoScale, stripDecorId);
   const stripDivider = getStripDividerPercent(layoutId, photoScale, stripDecorId);
-  const brandMark = getBrandMarkMetrics(layoutId);
+  const brandMarks = getBrandMarks(layoutId);
   const filterStyle = getFilterStyle(filterId);
   const isDual = layout.type === 'dual-column';
 
@@ -243,17 +243,20 @@ export default function InteractiveFrame({
           />
         ))}
 
-        <span
-          className="frame-brand-mark"
-          aria-hidden="true"
-          style={{
-            left: `${brandMark.leftPercent}%`,
-            top: `${brandMark.topPercent}%`,
-            fontSize: `${brandMark.fontSizeCqh}cqh`,
-          }}
-        >
-          {BRAND_NAME}
-        </span>
+        {brandMarks.map((brandMark, index) => (
+          <span
+            key={`brand-mark-${index}`}
+            className="frame-brand-mark"
+            aria-hidden="true"
+            style={{
+              left: `${brandMark.leftPercent}%`,
+              top: `${brandMark.topPercent}%`,
+              fontSize: `${brandMark.fontSizeCqh}cqh`,
+            }}
+          >
+            {BRAND_NAME}
+          </span>
+        ))}
       </div>
 
       <PhotoCropModal

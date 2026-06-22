@@ -1,5 +1,5 @@
 import { FRAMES, getLayout, getCanvasSize, BRAND_NAME } from './constants';
-import { computePhotoSlots, getBrandMarkMetrics, getLayoutMetrics } from './layout';
+import { computePhotoSlots, getBrandMarks, getLayoutMetrics } from './layout';
 import { getFilterStyle } from './filters';
 import { computeCoverSourceRect, normalizeFocus } from './photoCover';
 import { drawTextOverlays } from './textOverlays';
@@ -38,15 +38,19 @@ function drawPhotoSlot(ctx, img, slot, filterId, focus) {
   ctx.restore();
 }
 
-function drawBrandMark(ctx, layout, frame) {
-  const { fontSize, x, y } = getBrandMarkMetrics(layout.id);
+function drawBrandMarks(ctx, layout, frame) {
+  const marks = getBrandMarks(layout.id);
 
   ctx.save();
   ctx.fillStyle = frame.id === 'black' ? 'rgba(255, 255, 255, 0.24)' : 'rgba(0, 0, 0, 0.16)';
-  ctx.font = `600 ${fontSize}px "Noto Sans KR", system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillText(BRAND_NAME, x, y);
+
+  marks.forEach(({ fontSize, x, y }) => {
+    ctx.font = `600 ${fontSize}px "Noto Sans KR", system-ui, sans-serif`;
+    ctx.fillText(BRAND_NAME, x, y);
+  });
+
   ctx.restore();
 }
 
@@ -83,9 +87,9 @@ export async function composeStrip({
     drawPhotoSlot(ctx, img, slot, filterId, focus);
   });
 
-  drawStripDecor(ctx, stripDecorId, frame, width, height, metrics, stripDecorOpacity);
+  drawStripDecor(ctx, stripDecorId, frame, width, height, metrics, stripDecorOpacity, layout.type);
   drawTextOverlays(ctx, textOverlays, width, height, frame);
-  drawBrandMark(ctx, layout, frame);
+  drawBrandMarks(ctx, layout, frame);
 
   return canvas;
 }

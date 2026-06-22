@@ -4,6 +4,7 @@ import {
   STRIP_DECOR_OPACITY_MAX,
   STRIP_DECOR_OPACITY_MIN,
 } from './constants';
+import { getDualStripColumnGeometry, getHalfStripDecorPadding } from './layout';
 
 export function clampStripDecorOpacity(value) {
   const n = Number(value);
@@ -42,34 +43,27 @@ function drawFilmMark(ctx, x, y, size, color) {
   ctx.restore();
 }
 
-export function drawStripDecor(
+function drawSingleStripDecor(
   ctx,
-  stripDecorId,
+  decor,
   frame,
-  canvasW,
+  columnX,
+  stripW,
   canvasH,
-  metrics,
-  opacity = STRIP_DECOR_OPACITY_DEFAULT,
+  top,
+  bandH,
+  padX,
+  opacity,
 ) {
-  const decor = getStripDecor(stripDecorId);
-  if (decor.id === 'none') return;
-
-  const top = metrics.paddingTop;
-  const bottom = canvasH - metrics.paddingBottom;
-  const bandH = bottom - top;
-  const padX = metrics.paddingX;
   const textColor = getStripDecorTextColor(frame.id, opacity, 'text');
   const faintColor = getStripDecorTextColor(frame.id, opacity, 'faint');
-
-  const fontSize = Math.max(11, Math.round(canvasW * 0.0194));
+  const fontSize = Math.max(11, Math.round(stripW * 0.0194));
   const numSize = Math.max(7, Math.round(fontSize * 0.82));
   const markSize = Math.max(3, Math.round(fontSize * 0.38));
 
-  ctx.save();
-
   decor.leftNumbers?.forEach((num, i) => {
     const y = top + bandH * (0.24 + i * 0.34);
-    const x = padX * 0.36;
+    const x = columnX + padX * 0.36;
     ctx.font = `500 ${numSize}px system-ui, sans-serif`;
     ctx.fillStyle = faintColor;
     drawVerticalText(ctx, num, x, y, -Math.PI / 2);
@@ -78,13 +72,56 @@ export function drawStripDecor(
 
   decor.right?.forEach((line, i) => {
     const y = top + bandH * (0.3 + i * 0.36);
-    const x = canvasW - padX * 0.4;
+    const x = columnX + stripW - padX * 0.4;
     const weight = line === 'FRAMEIT' ? '600' : '500';
     const size = line === 'FRAMEIT' ? fontSize * 0.92 : fontSize;
     ctx.font = `${weight} ${size}px "Noto Sans KR", system-ui, sans-serif`;
     ctx.fillStyle = line === 'FRAMEIT' ? faintColor : textColor;
     drawVerticalText(ctx, line, x, y, -Math.PI / 2);
   });
+}
 
+export function drawStripDecor(
+  ctx,
+  stripDecorId,
+  frame,
+  canvasW,
+  canvasH,
+  metrics,
+  opacity = STRIP_DECOR_OPACITY_DEFAULT,
+  layoutType = 'column',
+) {
+  const decor = getStripDecor(stripDecorId);
+  if (decor.id === 'none') return;
+
+  const top = metrics.paddingTop;
+  const bottom = canvasH - metrics.paddingBottom;
+  const bandH = bottom - top;
+
+  if (layoutType === 'dual-column') {
+    const { columns, halfW } = getDualStripColumnGeometry(canvasW);
+    const padX = getHalfStripDecorPadding(halfW, stripDecorId);
+    ctx.save();
+    columns.forEach(({ columnX }) => {
+      drawSingleStripDecor(
+        ctx,
+        decor,
+        frame,
+        columnX,
+        halfW,
+        canvasH,
+        top,
+        bandH,
+        padX,
+        opacity,
+      );
+    });
+    ctx.restore();
+    return;
+  }
+
+  const padX = metrics.paddingX;
+  ctx.save();
+  drawSingleStripDecor(ctx, decor, frame, 0, canvasW, canvasH, top, bandH, padX, opacity);
   ctx.restore();
 }

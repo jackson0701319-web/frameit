@@ -170,95 +170,24 @@ function computeSingleColumnSlots(layout, rect, canvasW, canvasH, stripDecorId) 
   return fitColumnPhotos(rect, layout.photoCount, layout.photoAspect, gap);
 }
 
-function resolveDualColumnPadding(halfW, stripDecorId, side) {
-  const hasDecor = getStripDecor(stripDecorId).id !== 'none';
-  const normal = stripPaddingPx(halfW, false);
-  const decor = stripPaddingPx(halfW, true);
-
-  if (side === 'left') {
-    return { paddingLeft: hasDecor ? decor : normal, paddingRight: normal };
-  }
-  return { paddingLeft: normal, paddingRight: hasDecor ? decor : normal };
-}
-
-function getHalfStripDecorCompensation(halfW, stripDecorId, side) {
-  if (getStripDecor(stripDecorId).id === 'none') return 1;
-  const pads = resolveDualColumnPadding(halfW, stripDecorId, side);
-  const normal = stripPaddingPx(halfW, false);
-  const noneW = halfW - normal * 2;
-  const decorW = halfW - pads.paddingLeft - pads.paddingRight;
-  return noneW / decorW;
-}
-
-function clampSlotsToColumn(slots, minX, maxX) {
-  return slots.map((slot) => {
-    const slotRight = slot.x + slot.w;
-    const x = Math.max(slot.x, minX);
-    const right = Math.min(slotRight, maxX);
-    return { ...slot, x, w: Math.max(0, right - x) };
-  });
-}
-
-function computeHalfStripSlots({
-  columnX,
-  halfW,
-  canvasH,
-  metrics,
-  photoScale,
-  stripDecorId,
-  side,
-  layout,
-  gap,
-}) {
-  const pads = resolveDualColumnPadding(halfW, stripDecorId, side);
-  const top = metrics.paddingTop;
-  const columnH = canvasH - metrics.paddingTop - metrics.paddingBottom;
-  const contentW = halfW - pads.paddingLeft - pads.paddingRight;
-  const contentX = columnX + pads.paddingLeft;
-  const userScale = clampPhotoScale(photoScale) / 100;
-  const compensation = getHalfStripDecorCompensation(halfW, stripDecorId, side);
-  const scaled = scaleRectInCenter(
-    { x: contentX, y: top, w: contentW, h: columnH },
-    userScale * compensation,
-  );
-
-  const slots = fitColumnPhotos(scaled, layout.photoCount, layout.photoAspect, gap);
-  return clampSlotsToColumn(slots, columnX, columnX + halfW);
+/** 더블 스트립 한 칸 = 스트립 4컷과 동일한 슬롯 계산 후 x 오프셋 */
+function computeHalfStripAsStrip4(columnX, halfW, canvasH, photoScale, stripDecorId, layout) {
+  const stripLayout = getLayout('strip-4');
+  const rect = scaledContentRect(stripLayout, halfW, canvasH, photoScale, stripDecorId);
+  const gap = getLayoutMetrics(stripLayout, halfW, canvasH, stripDecorId).gap;
+  const slots = fitColumnPhotos(rect, layout.photoCount, layout.photoAspect, gap);
+  return slots.map((slot) => ({ ...slot, x: slot.x + columnX }));
 }
 
 /**
  * 더블 스트립 = 스트립 4컷 2장을 좌·우에 나란히 배치.
- * 각 칸은 독립된 2×6 스트립과 동일하게 계산하고, 테두리 문구는 바깥쪽만 적용.
+ * 각 칸은 스트립 4컷과 동일한 여백·스케일로 계산해 테두리 문구와 겹치지 않음.
  */
 function computeDualColumnSlots(layout, canvasW, canvasH, photoScale, stripDecorId = 'none') {
-  const userScale = clampPhotoScale(photoScale) / 100;
-  const metrics = getLayoutMetrics(layout, canvasW, canvasH, stripDecorId);
-  const stripGap = metrics.stripGap;
-  const halfW = (canvasW - stripGap) / 2;
-  const gap = metrics.gap * userScale;
+  const { stripGap, halfW } = getDualStripColumnGeometry(canvasW);
 
-  const leftSlots = computeHalfStripSlots({
-    columnX: 0,
-    halfW,
-    canvasH,
-    metrics,
-    photoScale,
-    stripDecorId,
-    side: 'left',
-    layout,
-    gap,
-  });
-  const rightSlots = computeHalfStripSlots({
-    columnX: halfW + stripGap,
-    halfW,
-    canvasH,
-    metrics,
-    photoScale,
-    stripDecorId,
-    side: 'right',
-    layout,
-    gap,
-  });
+  const leftSlots = computeHalfStripAsStrip4(0, halfW, canvasH, photoScale, stripDecorId, layout);
+  const rightSlots = computeHalfStripAsStrip4(halfW + stripGap, halfW, canvasH, photoScale, stripDecorId, layout);
 
   return [
     ...leftSlots.map((s, i) => ({ ...s, photoIndex: i, column: 'left' })),
@@ -345,24 +274,60 @@ function layoutHasCaptionArea(id) {
   return id === 'strip-4' || id === 'strip-4x6';
 }
 
-/** 프레임 상단 가운데 워터마크 */
-export function getBrandMarkMetrics(layoutId) {
-  const layout = getLayout(layoutId);
-  const { width, height } = getCanvasSize(layoutId);
-  const { paddingTop } = getLayoutMetrics(layout, width, height);
+/** 4×6 더블 스트립 = 스트립 4컷 2장 좌우 배치 */
+export function getDualStripColumnGeometry(canvasW) {
+  const stripGap = Math.max(4, Math.round(canvasW * PHOTOISM_RATIOS.stripCenterGap));
+  const halfW = (canvasW - stripGap) / 2;
+  return {
+    stripGap,
+    halfW,
+    columns: [
+      { columnX: 0, centerX: halfW / 2 },
+      { columnX: halfW + stripGap, centerX: halfW + stripGap + halfW / 2 },
+    ],
+  };
+}
+
+export function getHalfStripDecorPadding(halfW, stripDecorId) {
+  const hasDecor = getStripDecor(stripDecorId).id !== 'none';
+  return stripPaddingPx(halfW, hasDecor);
+}
+
+function buildBrandMark(centerX, halfW, canvasW, canvasH, paddingTop) {
   const fontSize = Math.max(
     9,
-    Math.min(Math.round(paddingTop * 0.34), Math.round(width * 0.017)),
+    Math.min(Math.round(paddingTop * 0.34), Math.round(halfW * 0.017)),
   );
   const y = Math.max(4, (paddingTop - fontSize) * 0.5);
   return {
     fontSize,
-    x: width / 2,
+    x: centerX,
     y,
-    leftPercent: 50,
-    topPercent: (y / height) * 100,
-    fontSizeCqh: (fontSize / height) * 100,
+    leftPercent: (centerX / canvasW) * 100,
+    topPercent: (y / canvasH) * 100,
+    fontSizeCqh: (fontSize / canvasH) * 100,
   };
+}
+
+/** 프레임 상단 워터마크 (더블 스트립은 스트립마다 1개) */
+export function getBrandMarks(layoutId) {
+  const layout = getLayout(layoutId);
+  const { width, height } = getCanvasSize(layoutId);
+  const { paddingTop } = getLayoutMetrics(layout, width, height);
+
+  if (layout.type === 'dual-column') {
+    const { columns, halfW } = getDualStripColumnGeometry(width);
+    const stripLayout = getLayout('strip-4');
+    const stripTop = getLayoutMetrics(stripLayout, halfW, height).paddingTop;
+    return columns.map(({ centerX }) => buildBrandMark(centerX, halfW, width, height, stripTop));
+  }
+
+  return [buildBrandMark(width / 2, width, width, height, paddingTop)];
+}
+
+/** @deprecated use getBrandMarks */
+export function getBrandMarkMetrics(layoutId) {
+  return getBrandMarks(layoutId)[0];
 }
 
 /** @deprecated use getDisplaySlots */
