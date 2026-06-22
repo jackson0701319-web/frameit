@@ -61,7 +61,7 @@ export function drawStripDecor(
   const textColor = getStripDecorTextColor(frame.id, opacity, 'text');
   const faintColor = getStripDecorTextColor(frame.id, opacity, 'faint');
 
-  const fontSize = Math.max(8, Math.round(canvasW * 0.0122));
+  const fontSize = Math.max(11, Math.round(canvasW * 0.0194));
   const numSize = Math.max(7, Math.round(fontSize * 0.82));
   const markSize = Math.max(3, Math.round(fontSize * 0.38));
 

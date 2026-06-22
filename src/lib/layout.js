@@ -1,5 +1,10 @@
 import { getLayout, getCanvasSize, PHOTO_SCALE_MIN, PHOTO_SCALE_MAX, PHOTOISM_RATIOS, getStripDecor } from './constants';
 
+function stripPaddingPx(halfW, useDecorPadding) {
+  const ratio = useDecorPadding ? PHOTOISM_RATIOS.paddingXDecor : PHOTOISM_RATIOS.paddingX;
+  return Math.round(halfW * ratio);
+}
+
 function resolvePaddingX(layout, canvasW, stripDecorId) {
   const r = PHOTOISM_RATIOS;
   const hasDecor = getStripDecor(stripDecorId).id !== 'none';
@@ -7,6 +12,12 @@ function resolvePaddingX(layout, canvasW, stripDecorId) {
   if (layout.type === 'grid-2x3') {
     const ratio = hasDecor ? r.cardPaddingDecor : r.cardPadding;
     return Math.round(canvasW * ratio);
+  }
+
+  if (layout.type === 'dual-column') {
+    const stripGap = Math.max(4, Math.round(canvasW * r.stripCenterGap));
+    const halfW = (canvasW - stripGap) / 2;
+    return stripPaddingPx(halfW, hasDecor);
   }
 
   const ratio = hasDecor ? r.paddingXDecor : r.paddingX;
@@ -93,10 +104,7 @@ function getDecorPhotoCompensation(layout, canvasW, canvasH, stripDecorId) {
   const decorRect = contentRect(layout, canvasW, canvasH, stripDecorId);
 
   if (layout.type === 'dual-column') {
-    const stripGap = getLayoutMetrics(layout, canvasW, canvasH, stripDecorId).stripGap;
-    const noneStripW = (noneRect.w - stripGap) / 2;
-    const decorStripW = (decorRect.w - stripGap) / 2;
-    return noneStripW / decorStripW;
+    return 1;
   }
 
   if (layout.type === 'grid-2x3') {
@@ -161,42 +169,96 @@ function computeSingleColumnSlots(layout, rect, canvasW, canvasH, stripDecorId) 
   const gap = getLayoutMetrics(layout, canvasW, canvasH, stripDecorId).gap;
   return fitColumnPhotos(rect, layout.photoCount, layout.photoAspect, gap);
 }
+
+function resolveDualColumnPadding(halfW, stripDecorId, side) {
+  const hasDecor = getStripDecor(stripDecorId).id !== 'none';
+  const normal = stripPaddingPx(halfW, false);
+  const decor = stripPaddingPx(halfW, true);
+
+  if (side === 'left') {
+    return { paddingLeft: hasDecor ? decor : normal, paddingRight: normal };
+  }
+  return { paddingLeft: normal, paddingRight: hasDecor ? decor : normal };
+}
+
+function getHalfStripDecorCompensation(halfW, stripDecorId, side) {
+  if (getStripDecor(stripDecorId).id === 'none') return 1;
+  const pads = resolveDualColumnPadding(halfW, stripDecorId, side);
+  const normal = stripPaddingPx(halfW, false);
+  const noneW = halfW - normal * 2;
+  const decorW = halfW - pads.paddingLeft - pads.paddingRight;
+  return noneW / decorW;
+}
+
+function clampSlotsToColumn(slots, minX, maxX) {
+  return slots.map((slot) => {
+    const slotRight = slot.x + slot.w;
+    const x = Math.max(slot.x, minX);
+    const right = Math.min(slotRight, maxX);
+    return { ...slot, x, w: Math.max(0, right - x) };
+  });
+}
+
+function computeHalfStripSlots({
+  columnX,
+  halfW,
+  canvasH,
+  metrics,
+  photoScale,
+  stripDecorId,
+  side,
+  layout,
+  gap,
+}) {
+  const pads = resolveDualColumnPadding(halfW, stripDecorId, side);
+  const top = metrics.paddingTop;
+  const columnH = canvasH - metrics.paddingTop - metrics.paddingBottom;
+  const contentW = halfW - pads.paddingLeft - pads.paddingRight;
+  const contentX = columnX + pads.paddingLeft;
+  const userScale = clampPhotoScale(photoScale) / 100;
+  const compensation = getHalfStripDecorCompensation(halfW, stripDecorId, side);
+  const scaled = scaleRectInCenter(
+    { x: contentX, y: top, w: contentW, h: columnH },
+    userScale * compensation,
+  );
+
+  const slots = fitColumnPhotos(scaled, layout.photoCount, layout.photoAspect, gap);
+  return clampSlotsToColumn(slots, columnX, columnX + halfW);
+}
+
 /**
  * 더블 스트립 = 스트립 4컷 2장을 좌·우에 나란히 배치.
- * 사진 크기를 줄이면 각 스트립이 자기 칸 안에서만 줄고, 가운데 간격이 넓어짐.
+ * 각 칸은 독립된 2×6 스트립과 동일하게 계산하고, 테두리 문구는 바깥쪽만 적용.
  */
 function computeDualColumnSlots(layout, canvasW, canvasH, photoScale, stripDecorId = 'none') {
   const userScale = clampPhotoScale(photoScale) / 100;
-  const effectiveScale = effectivePhotoScaleFactor(photoScale, layout, canvasW, canvasH, stripDecorId);
   const metrics = getLayoutMetrics(layout, canvasW, canvasH, stripDecorId);
-  const fullRect = contentRect(layout, canvasW, canvasH, stripDecorId);
   const stripGap = metrics.stripGap;
+  const halfW = (canvasW - stripGap) / 2;
   const gap = metrics.gap * userScale;
-  const stripW = (fullRect.w - stripGap) / 2;
 
-  const leftColumn = { x: fullRect.x, y: fullRect.y, w: stripW, h: fullRect.h };
-  const rightColumn = {
-    x: fullRect.x + stripW + stripGap,
-    y: fullRect.y,
-    w: stripW,
-    h: fullRect.h,
-  };
-
-  const leftPhotoArea = scaleRectInCenter(leftColumn, effectiveScale);
-  const rightPhotoArea = scaleRectInCenter(rightColumn, effectiveScale);
-
-  const leftSlots = fitColumnPhotos(
-    leftPhotoArea,
-    layout.photoCount,
-    layout.photoAspect,
+  const leftSlots = computeHalfStripSlots({
+    columnX: 0,
+    halfW,
+    canvasH,
+    metrics,
+    photoScale,
+    stripDecorId,
+    side: 'left',
+    layout,
     gap,
-  );
-  const rightSlots = fitColumnPhotos(
-    rightPhotoArea,
-    layout.photoCount,
-    layout.photoAspect,
+  });
+  const rightSlots = computeHalfStripSlots({
+    columnX: halfW + stripGap,
+    halfW,
+    canvasH,
+    metrics,
+    photoScale,
+    stripDecorId,
+    side: 'right',
+    layout,
     gap,
-  );
+  });
 
   return [
     ...leftSlots.map((s, i) => ({ ...s, photoIndex: i, column: 'left' })),

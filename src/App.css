@@ -306,7 +306,7 @@
 
 .strip-decor__num {
   writing-mode: vertical-rl;
-  font-size: 0.49cqh;
+  font-size: 0.73cqh;
   font-weight: 500;
   letter-spacing: 0.08em;
 }
@@ -317,7 +317,7 @@
   transform: translateY(-50%);
   writing-mode: vertical-rl;
   text-orientation: mixed;
-  font-size: 0.57cqh;
+  font-size: 0.85cqh;
   font-weight: 500;
   letter-spacing: 0.12em;
   white-space: nowrap;
