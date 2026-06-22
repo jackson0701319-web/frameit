@@ -33,23 +33,25 @@ if ($status) {
 }
 
 $repoName = "frameit"
-$remoteUrl = gh repo view $login/$repoName --json url -q .url 2>$null
+$remoteUrl = $null
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = 'SilentlyContinue'
+$remoteUrl = gh repo view "${login}/${repoName}" --json url -q .url 2>$null
+$ErrorActionPreference = $prevEap
 
 if ($remoteUrl) {
   Write-Host "저장소가 이미 있습니다: $remoteUrl" -ForegroundColor Yellow
   git remote remove origin 2>$null
-  git remote add origin "https://github.com/$login/$repoName.git"
+  git remote add origin "https://github.com/${login}/${repoName}.git"
 } else {
   Write-Host "GitHub 저장소 생성 중: $repoName ..." -ForegroundColor Cyan
-  gh repo create $repoName --public --source=. --remote=origin --description "FrameIt — 사진을 프레임 안에 넣어보자"
+  gh repo create $repoName --public --source=. --remote=origin --description "FrameIt - photo frame web app"
+  if ($LASTEXITCODE -ne 0) {
+    throw "저장소 생성 실패. 이름 frameit 이 이미 사용 중일 수 있습니다."
+  }
 }
 
-$branch = git branch --show-current
-if (-not $branch) {
-  git checkout -b main
-  $branch = "main"
-}
-if ($branch -eq "master") { } else { git branch -M main 2>$null }
+git branch -M main 2>$null
 
 Write-Host "push 중..." -ForegroundColor Cyan
 git push -u origin main
