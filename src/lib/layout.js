@@ -1,5 +1,45 @@
-import { getLayout, getCanvasSize, PHOTO_SCALE_MIN, PHOTO_SCALE_MAX } from './constants';
+import { getLayout, getCanvasSize, PHOTO_SCALE_MIN, PHOTO_SCALE_MAX, PHOTOISM_RATIOS } from './constants';
 
+/** 포토이즘 실측 비율 → 픽셀 (레이아웃·해상도에 맞게 스케일) */
+export function getLayoutMetrics(layout, canvasW, canvasH) {
+  const r = PHOTOISM_RATIOS;
+  const photoGap = Math.max(4, Math.round(canvasH * r.photoGap));
+
+  if (layout.type === 'grid-2x3') {
+    const pad = Math.round(canvasW * r.cardPadding);
+    return {
+      paddingX: pad,
+      paddingTop: pad,
+      paddingBottom: pad,
+      gap: photoGap,
+      gapX: photoGap,
+      gapY: photoGap,
+      stripGap: 0,
+    };
+  }
+
+  if (layout.type === 'dual-column') {
+    return {
+      paddingX: Math.round(canvasW * r.paddingX),
+      paddingTop: Math.round(canvasH * r.paddingTop),
+      paddingBottom: Math.round(canvasH * r.paddingBottom),
+      gap: photoGap,
+      gapX: photoGap,
+      gapY: photoGap,
+      stripGap: Math.max(4, Math.round(canvasW * r.stripCenterGap)),
+    };
+  }
+
+  return {
+    paddingX: Math.round(canvasW * r.paddingX),
+    paddingTop: Math.round(canvasH * r.paddingTop),
+    paddingBottom: Math.round(canvasH * r.paddingBottom),
+    gap: photoGap,
+    gapX: photoGap,
+    gapY: photoGap,
+    stripGap: 0,
+  };
+}
 export function clampPhotoScale(value) {
   const n = Number(value);
   if (Number.isNaN(n)) return PHOTO_SCALE_MAX;
@@ -17,24 +57,21 @@ export function computePhotoSlots(layoutId, canvasW, canvasH, photoScale = PHOTO
 
   switch (layout.type) {
     case 'grid-2x3':
-      return computeGridSlots(layout, rect);
+      return computeGridSlots(layout, rect, canvasW, canvasH);
     default:
-      return computeSingleColumnSlots(layout, rect);
+      return computeSingleColumnSlots(layout, rect, canvasW, canvasH);
   }
 }
 
 function contentRect(layout, canvasW, canvasH) {
-  const top = layout.paddingTop ?? layout.padding ?? 0;
-  const bottom = layout.paddingBottom ?? layout.padding ?? 0;
-  const px = layout.paddingX ?? layout.padding ?? 0;
+  const m = getLayoutMetrics(layout, canvasW, canvasH);
   return {
-    x: px,
-    y: top,
-    w: canvasW - px * 2,
-    h: canvasH - top - bottom,
+    x: m.paddingX,
+    y: m.paddingTop,
+    w: canvasW - m.paddingX * 2,
+    h: canvasH - m.paddingTop - m.paddingBottom,
   };
 }
-
 function scaledContentRect(layout, canvasW, canvasH, photoScale) {
   const rect = contentRect(layout, canvasW, canvasH);
   return scaleRectInCenter(rect, clampPhotoScale(photoScale) / 100);
@@ -72,21 +109,20 @@ function fitColumnPhotos(rect, count, photoAspect, gap) {
   return slots;
 }
 
-function computeSingleColumnSlots(layout, rect) {
-  const gap = layout.gap ?? 4;
+function computeSingleColumnSlots(layout, rect, canvasW, canvasH) {
+  const gap = getLayoutMetrics(layout, canvasW, canvasH).gap;
   return fitColumnPhotos(rect, layout.photoCount, layout.photoAspect, gap);
 }
-
 /**
  * 더블 스트립 = 스트립 4컷 2장을 좌·우에 나란히 배치.
  * 사진 크기를 줄이면 각 스트립이 자기 칸 안에서만 줄고, 가운데 간격이 넓어짐.
  */
 function computeDualColumnSlots(layout, canvasW, canvasH, photoScale) {
   const scaleFactor = clampPhotoScale(photoScale) / 100;
+  const metrics = getLayoutMetrics(layout, canvasW, canvasH);
   const fullRect = contentRect(layout, canvasW, canvasH);
-  const stripGap = layout.stripGap ?? 0;
-  const gap = (layout.gap ?? 4) * scaleFactor;
-
+  const stripGap = metrics.stripGap;
+  const gap = metrics.gap * scaleFactor;
   const stripW = (fullRect.w - stripGap) / 2;
 
   const leftColumn = { x: fullRect.x, y: fullRect.y, w: stripW, h: fullRect.h };
@@ -119,12 +155,10 @@ function computeDualColumnSlots(layout, canvasW, canvasH, photoScale) {
   ];
 }
 
-function computeGridSlots(layout, rect) {
+function computeGridSlots(layout, rect, canvasW, canvasH) {
   const cols = 2;
   const rows = layout.photoCount / cols;
-  const gapX = layout.gapX ?? layout.gap ?? 10;
-  const gapY = layout.gapY ?? layout.gap ?? 10;
-
+  const { gapX, gapY } = getLayoutMetrics(layout, canvasW, canvasH);
   // 콘텐츠 영역을 가로·세로 모두 꽉 채움 (가운데 정렬 여백 없음)
   const photoW = (rect.w - (cols - 1) * gapX) / cols;
   const photoH = (rect.h - (rows - 1) * gapY) / rows;
@@ -188,15 +222,14 @@ export function getCaptionAreaPercent(layoutId) {
   const layout = getLayout(layoutId);
   if (!layoutHasCaptionArea(layout.id)) return null;
   const { width, height } = getCanvasSize(layoutId);
-  const footerH = layout.paddingBottom ?? 48;
+  const { paddingBottom } = getLayoutMetrics(layout, width, height);
   return {
     left: '0%',
-    top: `${((height - footerH) / height) * 100}%`,
+    top: `${((height - paddingBottom) / height) * 100}%`,
     width: '100%',
-    height: `${(footerH / height) * 100}%`,
+    height: `${(paddingBottom / height) * 100}%`,
   };
 }
-
 function layoutHasCaptionArea(id) {
   return id === 'strip-4' || id === 'strip-4x6';
 }
@@ -205,16 +238,13 @@ function layoutHasCaptionArea(id) {
 export function getBrandMarkMetrics(layoutId) {
   const layout = getLayout(layoutId);
   const { width, height } = getCanvasSize(layoutId);
-  const padT = layout.paddingTop ?? 16;
-  const padX = layout.paddingX ?? 14;
-
+  const { paddingTop, paddingX } = getLayoutMetrics(layout, width, height);
   const fontSize = Math.max(
     9,
-    Math.min(Math.round(padT * 0.34), Math.round(width * 0.017)),
+    Math.min(Math.round(paddingTop * 0.34), Math.round(width * 0.017)),
   );
-  const y = Math.max(4, (padT - fontSize) * 0.32);
-  const insetRight = Math.max(5, padX * 0.18);
-
+  const y = Math.max(4, (paddingTop - fontSize) * 0.32);
+  const insetRight = Math.max(5, paddingX * 0.18);
   return {
     fontSize,
     x: width - insetRight,

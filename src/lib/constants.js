@@ -1,4 +1,19 @@
 /** 포토이즘 인화지 규격 기반 레이아웃 */
+/** @see PHOTOISM_RATIOS — 여백·간격은 캔버스 크기에 비례해 자동 계산 */
+
+export const PHOTOISM_RATIOS = {
+  /** 2×6 스트립 @ 600×1800px 실측 기준 */
+  paddingX: 14 / 600,
+  paddingTop: 52 / 1800,
+  paddingBottom: 48 / 1800,
+  /** 사진 사이 상·하·좌·우 간격 (모든 레이아웃 공통) */
+  photoGap: 7 / 1800,
+  /** 4×6 더블 스트립 가운데 절취선 */
+  stripCenterGap: 6 / 1200,
+  /** 4×6 와이드 외곽 여백 */
+  cardPadding: 12 / 1200,
+};
+
 export const LAYOUTS = {
   'strip-4': {
     id: 'strip-4',
@@ -11,12 +26,6 @@ export const LAYOUTS = {
     photoAspect: 4 / 3,
     photoLabel: '4:3',
     type: 'column',
-    paddingX: 14,
-    paddingTop: 52,
-    paddingBottom: 48,
-    gap: 5,
-    footerHeight: 0,
-    headerHeight: 0,
   },
   'strip-4x6': {
     id: 'strip-4x6',
@@ -29,13 +38,6 @@ export const LAYOUTS = {
     photoAspect: 4 / 3,
     photoLabel: '4:3',
     type: 'dual-column',
-    stripGap: 6,
-    paddingX: 16,
-    paddingTop: 52,
-    paddingBottom: 48,
-    gap: 5,
-    footerHeight: 0,
-    headerHeight: 0,
   },
   'wide-6': {
     id: 'wide-6',
@@ -48,14 +50,8 @@ export const LAYOUTS = {
     photoAspect: 1,
     photoLabel: '1:1',
     type: 'grid-2x3',
-    paddingX: 12,
-    paddingTop: 12,
-    paddingBottom: 12,
-    gapX: 8,
-    gapY: 8,
   },
 };
-
 export const LAYOUT_LIST = Object.values(LAYOUTS);
 
 export const BRAND_NAME = 'FrameIt';
