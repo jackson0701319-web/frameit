@@ -1,8 +1,9 @@
 import { FRAMES, getLayout, getCanvasSize, BRAND_NAME } from './constants';
-import { computePhotoSlots, getBrandMarkMetrics } from './layout';
+import { computePhotoSlots, getBrandMarkMetrics, getLayoutMetrics } from './layout';
 import { getFilterStyle } from './filters';
 import { computeCoverSourceRect, normalizeFocus } from './photoCover';
 import { drawTextOverlays } from './textOverlays';
+import { drawStripDecor } from './stripDecor';
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -43,7 +44,7 @@ function drawBrandMark(ctx, layout, frame) {
   ctx.save();
   ctx.fillStyle = frame.id === 'black' ? 'rgba(255, 255, 255, 0.24)' : 'rgba(0, 0, 0, 0.16)';
   ctx.font = `600 ${fontSize}px "Noto Sans KR", system-ui, sans-serif`;
-  ctx.textAlign = 'right';
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillText(BRAND_NAME, x, y);
   ctx.restore();
@@ -55,6 +56,8 @@ export async function composeStrip({
   layoutId = 'strip-4',
   frameId = 'white',
   filterId = 'original',
+  stripDecorId = 'none',
+  stripDecorOpacity = 85,
   textOverlays = [],
   photoScale = 100,
 }) {
@@ -63,6 +66,7 @@ export async function composeStrip({
   const images = await Promise.all(photoSrcs.map((src) => loadImage(src)));
 
   const { width, height } = getCanvasSize(layoutId);
+  const metrics = getLayoutMetrics(layout, width, height, stripDecorId);
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -71,7 +75,7 @@ export async function composeStrip({
   ctx.fillStyle = frame.bg;
   ctx.fillRect(0, 0, width, height);
 
-  const slots = computePhotoSlots(layoutId, width, height, photoScale);
+  const slots = computePhotoSlots(layoutId, width, height, photoScale, stripDecorId);
   slots.forEach((slot) => {
     const img = images[slot.photoIndex];
     if (!img) return;
@@ -79,6 +83,7 @@ export async function composeStrip({
     drawPhotoSlot(ctx, img, slot, filterId, focus);
   });
 
+  drawStripDecor(ctx, stripDecorId, frame, width, height, metrics, stripDecorOpacity);
   drawTextOverlays(ctx, textOverlays, width, height, frame);
   drawBrandMark(ctx, layout, frame);
 

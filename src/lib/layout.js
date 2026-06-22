@@ -1,12 +1,26 @@
-import { getLayout, getCanvasSize, PHOTO_SCALE_MIN, PHOTO_SCALE_MAX, PHOTOISM_RATIOS } from './constants';
+import { getLayout, getCanvasSize, PHOTO_SCALE_MIN, PHOTO_SCALE_MAX, PHOTOISM_RATIOS, getStripDecor } from './constants';
 
-/** 포토이즘 실측 비율 → 픽셀 (레이아웃·해상도에 맞게 스케일) */
-export function getLayoutMetrics(layout, canvasW, canvasH) {
+function resolvePaddingX(layout, canvasW, stripDecorId) {
   const r = PHOTOISM_RATIOS;
-  const photoGap = Math.max(4, Math.round(canvasH * r.photoGap));
+  const hasDecor = getStripDecor(stripDecorId).id !== 'none';
 
   if (layout.type === 'grid-2x3') {
-    const pad = Math.round(canvasW * r.cardPadding);
+    const ratio = hasDecor ? r.cardPaddingDecor : r.cardPadding;
+    return Math.round(canvasW * ratio);
+  }
+
+  const ratio = hasDecor ? r.paddingXDecor : r.paddingX;
+  return Math.round(canvasW * ratio);
+}
+
+/** 포토이즘 실측 비율 → 픽셀 (레이아웃·해상도에 맞게 스케일) */
+export function getLayoutMetrics(layout, canvasW, canvasH, stripDecorId = 'none') {
+  const r = PHOTOISM_RATIOS;
+  const photoGap = Math.max(4, Math.round(canvasH * r.photoGap));
+  const paddingX = resolvePaddingX(layout, canvasW, stripDecorId);
+
+  if (layout.type === 'grid-2x3') {
+    const pad = paddingX;
     return {
       paddingX: pad,
       paddingTop: pad,
@@ -20,7 +34,7 @@ export function getLayoutMetrics(layout, canvasW, canvasH) {
 
   if (layout.type === 'dual-column') {
     return {
-      paddingX: Math.round(canvasW * r.paddingX),
+      paddingX,
       paddingTop: Math.round(canvasH * r.paddingTop),
       paddingBottom: Math.round(canvasH * r.paddingBottom),
       gap: photoGap,
@@ -31,7 +45,7 @@ export function getLayoutMetrics(layout, canvasW, canvasH) {
   }
 
   return {
-    paddingX: Math.round(canvasW * r.paddingX),
+    paddingX,
     paddingTop: Math.round(canvasH * r.paddingTop),
     paddingBottom: Math.round(canvasH * r.paddingBottom),
     gap: photoGap,
@@ -46,25 +60,25 @@ export function clampPhotoScale(value) {
   return Math.min(PHOTO_SCALE_MAX, Math.max(PHOTO_SCALE_MIN, Math.round(n)));
 }
 
-export function computePhotoSlots(layoutId, canvasW, canvasH, photoScale = PHOTO_SCALE_MAX) {
+export function computePhotoSlots(layoutId, canvasW, canvasH, photoScale = PHOTO_SCALE_MAX, stripDecorId = 'none') {
   const layout = getLayout(layoutId);
 
   if (layout.type === 'dual-column') {
-    return computeDualColumnSlots(layout, canvasW, canvasH, photoScale);
+    return computeDualColumnSlots(layout, canvasW, canvasH, photoScale, stripDecorId);
   }
 
-  const rect = scaledContentRect(layout, canvasW, canvasH, photoScale);
+  const rect = scaledContentRect(layout, canvasW, canvasH, photoScale, stripDecorId);
 
   switch (layout.type) {
     case 'grid-2x3':
-      return computeGridSlots(layout, rect, canvasW, canvasH);
+      return computeGridSlots(layout, rect, canvasW, canvasH, stripDecorId);
     default:
-      return computeSingleColumnSlots(layout, rect, canvasW, canvasH);
+      return computeSingleColumnSlots(layout, rect, canvasW, canvasH, stripDecorId);
   }
 }
 
-function contentRect(layout, canvasW, canvasH) {
-  const m = getLayoutMetrics(layout, canvasW, canvasH);
+function contentRect(layout, canvasW, canvasH, stripDecorId = 'none') {
+  const m = getLayoutMetrics(layout, canvasW, canvasH, stripDecorId);
   return {
     x: m.paddingX,
     y: m.paddingTop,
@@ -72,14 +86,48 @@ function contentRect(layout, canvasW, canvasH) {
     h: canvasH - m.paddingTop - m.paddingBottom,
   };
 }
-function scaledContentRect(layout, canvasW, canvasH, photoScale) {
-  const rect = contentRect(layout, canvasW, canvasH);
-  return scaleRectInCenter(rect, clampPhotoScale(photoScale) / 100);
+function getDecorPhotoCompensation(layout, canvasW, canvasH, stripDecorId) {
+  if (getStripDecor(stripDecorId).id === 'none') return 1;
+
+  const noneRect = contentRect(layout, canvasW, canvasH, 'none');
+  const decorRect = contentRect(layout, canvasW, canvasH, stripDecorId);
+
+  if (layout.type === 'dual-column') {
+    const stripGap = getLayoutMetrics(layout, canvasW, canvasH, stripDecorId).stripGap;
+    const noneStripW = (noneRect.w - stripGap) / 2;
+    const decorStripW = (decorRect.w - stripGap) / 2;
+    return noneStripW / decorStripW;
+  }
+
+  if (layout.type === 'grid-2x3') {
+    const metrics = getLayoutMetrics(layout, canvasW, canvasH, stripDecorId);
+    const cols = 2;
+    const rows = 3;
+    const noneCellW = (noneRect.w - (cols - 1) * metrics.gapX) / cols;
+    const noneCellH = (noneRect.h - (rows - 1) * metrics.gapY) / rows;
+    const decorCellW = (decorRect.w - (cols - 1) * metrics.gapX) / cols;
+    const decorCellH = (decorRect.h - (rows - 1) * metrics.gapY) / rows;
+    return Math.min(noneCellW / decorCellW, noneCellH / decorCellH);
+  }
+
+  return noneRect.w / decorRect.w;
 }
 
-/** 영역 안에서 가운데 기준 축소 (각 스트립 독립 적용용) */
+function effectivePhotoScaleFactor(photoScale, layout, canvasW, canvasH, stripDecorId) {
+  const userScale = clampPhotoScale(photoScale) / 100;
+  const compensation = getDecorPhotoCompensation(layout, canvasW, canvasH, stripDecorId);
+  return userScale * compensation;
+}
+
+function scaledContentRect(layout, canvasW, canvasH, photoScale, stripDecorId = 'none') {
+  const rect = contentRect(layout, canvasW, canvasH, stripDecorId);
+  const scale = effectivePhotoScaleFactor(photoScale, layout, canvasW, canvasH, stripDecorId);
+  return scaleRectInCenter(rect, scale);
+}
+
+/** 영역 안에서 가운데 기준 확대·축소 */
 function scaleRectInCenter(rect, scale) {
-  if (scale >= 1) return rect;
+  if (scale === 1) return rect;
   return {
     x: rect.x + rect.w * (1 - scale) / 2,
     y: rect.y + rect.h * (1 - scale) / 2,
@@ -109,20 +157,21 @@ function fitColumnPhotos(rect, count, photoAspect, gap) {
   return slots;
 }
 
-function computeSingleColumnSlots(layout, rect, canvasW, canvasH) {
-  const gap = getLayoutMetrics(layout, canvasW, canvasH).gap;
+function computeSingleColumnSlots(layout, rect, canvasW, canvasH, stripDecorId) {
+  const gap = getLayoutMetrics(layout, canvasW, canvasH, stripDecorId).gap;
   return fitColumnPhotos(rect, layout.photoCount, layout.photoAspect, gap);
 }
 /**
  * 더블 스트립 = 스트립 4컷 2장을 좌·우에 나란히 배치.
  * 사진 크기를 줄이면 각 스트립이 자기 칸 안에서만 줄고, 가운데 간격이 넓어짐.
  */
-function computeDualColumnSlots(layout, canvasW, canvasH, photoScale) {
-  const scaleFactor = clampPhotoScale(photoScale) / 100;
-  const metrics = getLayoutMetrics(layout, canvasW, canvasH);
-  const fullRect = contentRect(layout, canvasW, canvasH);
+function computeDualColumnSlots(layout, canvasW, canvasH, photoScale, stripDecorId = 'none') {
+  const userScale = clampPhotoScale(photoScale) / 100;
+  const effectiveScale = effectivePhotoScaleFactor(photoScale, layout, canvasW, canvasH, stripDecorId);
+  const metrics = getLayoutMetrics(layout, canvasW, canvasH, stripDecorId);
+  const fullRect = contentRect(layout, canvasW, canvasH, stripDecorId);
   const stripGap = metrics.stripGap;
-  const gap = metrics.gap * scaleFactor;
+  const gap = metrics.gap * userScale;
   const stripW = (fullRect.w - stripGap) / 2;
 
   const leftColumn = { x: fullRect.x, y: fullRect.y, w: stripW, h: fullRect.h };
@@ -133,8 +182,8 @@ function computeDualColumnSlots(layout, canvasW, canvasH, photoScale) {
     h: fullRect.h,
   };
 
-  const leftPhotoArea = scaleRectInCenter(leftColumn, scaleFactor);
-  const rightPhotoArea = scaleRectInCenter(rightColumn, scaleFactor);
+  const leftPhotoArea = scaleRectInCenter(leftColumn, effectiveScale);
+  const rightPhotoArea = scaleRectInCenter(rightColumn, effectiveScale);
 
   const leftSlots = fitColumnPhotos(
     leftPhotoArea,
@@ -155,10 +204,10 @@ function computeDualColumnSlots(layout, canvasW, canvasH, photoScale) {
   ];
 }
 
-function computeGridSlots(layout, rect, canvasW, canvasH) {
+function computeGridSlots(layout, rect, canvasW, canvasH, stripDecorId = 'none') {
   const cols = 2;
   const rows = layout.photoCount / cols;
-  const { gapX, gapY } = getLayoutMetrics(layout, canvasW, canvasH);
+  const { gapX, gapY } = getLayoutMetrics(layout, canvasW, canvasH, stripDecorId);
   // 콘텐츠 영역을 가로·세로 모두 꽉 채움 (가운데 정렬 여백 없음)
   const photoW = (rect.w - (cols - 1) * gapX) / cols;
   const photoH = (rect.h - (rows - 1) * gapY) / rows;
@@ -181,9 +230,9 @@ function computeGridSlots(layout, rect, canvasW, canvasH) {
   return slots;
 }
 
-export function getDisplaySlots(layoutId, photoScale = PHOTO_SCALE_MAX) {
+export function getDisplaySlots(layoutId, photoScale = PHOTO_SCALE_MAX, stripDecorId = 'none') {
   const { width, height } = getCanvasSize(layoutId);
-  const slots = computePhotoSlots(layoutId, width, height, photoScale);
+  const slots = computePhotoSlots(layoutId, width, height, photoScale, stripDecorId);
   return slots.map((s) => ({
     left: `${(s.x / width) * 100}%`,
     top: `${(s.y / height) * 100}%`,
@@ -196,11 +245,11 @@ export function getDisplaySlots(layoutId, photoScale = PHOTO_SCALE_MAX) {
   }));
 }
 
-export function getStripDividerPercent(layoutId, photoScale = PHOTO_SCALE_MAX) {
+export function getStripDividerPercent(layoutId, photoScale = PHOTO_SCALE_MAX, stripDecorId = 'none') {
   const layout = getLayout(layoutId);
   if (layout.type !== 'dual-column') return null;
   const { width, height } = getCanvasSize(layoutId);
-  const slots = computePhotoSlots(layoutId, width, height, photoScale);
+  const slots = computePhotoSlots(layoutId, width, height, photoScale, stripDecorId);
   const left = slots.filter((s) => s.column === 'left');
   const right = slots.filter((s) => s.column === 'right');
   if (!left.length || !right.length) return null;
@@ -234,23 +283,22 @@ function layoutHasCaptionArea(id) {
   return id === 'strip-4' || id === 'strip-4x6';
 }
 
-/** 상단 여백 안·오른쪽 가장자리 (사진과 겹치지 않게) */
+/** 프레임 상단 가운데 워터마크 */
 export function getBrandMarkMetrics(layoutId) {
   const layout = getLayout(layoutId);
   const { width, height } = getCanvasSize(layoutId);
-  const { paddingTop, paddingX } = getLayoutMetrics(layout, width, height);
+  const { paddingTop } = getLayoutMetrics(layout, width, height);
   const fontSize = Math.max(
     9,
     Math.min(Math.round(paddingTop * 0.34), Math.round(width * 0.017)),
   );
-  const y = Math.max(4, (paddingTop - fontSize) * 0.32);
-  const insetRight = Math.max(5, paddingX * 0.18);
+  const y = Math.max(4, (paddingTop - fontSize) * 0.5);
   return {
     fontSize,
-    x: width - insetRight,
+    x: width / 2,
     y,
+    leftPercent: 50,
     topPercent: (y / height) * 100,
-    rightPercent: (insetRight / width) * 100,
     fontSizeCqh: (fontSize / height) * 100,
   };
 }

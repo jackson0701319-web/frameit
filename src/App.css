@@ -196,6 +196,138 @@
   border-radius: 999px;
 }
 
+.panel__hint {
+  margin: -0.35rem 0 0.65rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* Strip decor picker */
+.strip-decor-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.strip-decor-picker__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  text-align: left;
+  color: var(--text-muted);
+  transition: all 0.15s;
+}
+
+.strip-decor-picker__item.active {
+  border-color: var(--accent);
+  background: rgba(255, 107, 157, 0.08);
+  color: var(--text);
+}
+
+.strip-decor-picker__label {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.strip-decor-picker__preview {
+  font-size: 0.65rem;
+  opacity: 0.75;
+  letter-spacing: 0.04em;
+}
+
+.strip-decor-picker__opacity {
+  margin-top: 0.35rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
+}
+
+.strip-decor-picker__opacity-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.strip-decor-picker__opacity-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.strip-decor-picker__range {
+  flex: 1;
+  accent-color: var(--accent);
+  min-height: 28px;
+}
+
+.strip-decor-picker__opacity-value {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  min-width: 2.5rem;
+  text-align: right;
+}
+
+/* Side border decor overlay */
+.strip-decor {
+  position: absolute;
+  pointer-events: none;
+  z-index: 3;
+  overflow: hidden;
+}
+
+.strip-decor--left {
+  left: 0;
+}
+
+.strip-decor--right {
+  right: 0;
+}
+
+.strip-decor__left-item {
+  position: absolute;
+  left: 18%;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  transform: translateY(-50%);
+}
+
+.strip-decor__mark {
+  width: 0;
+  height: 0;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-left: 5px solid currentColor;
+}
+
+.strip-decor__num {
+  writing-mode: vertical-rl;
+  font-size: 0.49cqh;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.strip-decor__vertical {
+  position: absolute;
+  right: 22%;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 0.57cqh;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.strip-decor__vertical--brand {
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
 /* Interactive frame preview */
 .interactive-frame-wrap {
   width: 100%;
@@ -232,6 +364,8 @@
 
 .frame-brand-mark {
   position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   font-weight: 600;
   letter-spacing: 0.1em;
   pointer-events: none;

@@ -12,6 +12,9 @@ export const PHOTOISM_RATIOS = {
   stripCenterGap: 6 / 1200,
   /** 4×6 와이드 외곽 여백 */
   cardPadding: 12 / 1200,
+  /** 사이드 문구 있을 때 좌우 여백 (포토이즘 필름 스트립) */
+  paddingXDecor: 44 / 600,
+  cardPaddingDecor: 28 / 1200,
 };
 
 export const LAYOUTS = {
@@ -56,6 +59,40 @@ export const LAYOUT_LIST = Object.values(LAYOUTS);
 
 export const BRAND_NAME = 'FrameIt';
 
+/** 좌·우 세로 테두리 문구 */
+export const STRIP_DECORS = [
+  { id: 'none', name: '없음', preview: '심플 프레임' },
+  {
+    id: 'memories',
+    name: '메모리',
+    preview: 'KEEP YOUR MEMORIES',
+    right: ['KEEP YOUR MEMORIES', 'FRAMEIT'],
+    leftNumbers: ['48', '47'],
+  },
+  {
+    id: 'moment',
+    name: '모먼트',
+    preview: 'CAPTURE THE MOMENT',
+    right: ['CAPTURE THE MOMENT', 'FRAMEIT'],
+    leftNumbers: ['42', '41'],
+  },
+  {
+    id: 'forever',
+    name: '포에버',
+    preview: 'STAY YOUNG FOREVER',
+    right: ['STAY YOUNG FOREVER', 'FRAMEIT'],
+    leftNumbers: ['36', '35'],
+  },
+];
+
+export function getStripDecor(stripDecorId) {
+  return STRIP_DECORS.find((d) => d.id === stripDecorId) ?? STRIP_DECORS[0];
+}
+
+export const STRIP_DECOR_OPACITY_MIN = 20;
+export const STRIP_DECOR_OPACITY_MAX = 100;
+export const STRIP_DECOR_OPACITY_DEFAULT = 85;
+
 export const APP_NAME = 'FrameIt';
 export const APP_TAGLINE = '사진을 프레임 안에 넣어보자';
 
@@ -81,6 +118,7 @@ export const FRAMES = [
 export const PHOTO_SCALE_MIN = 70;
 export const PHOTO_SCALE_MAX = 100;
 export const PHOTO_SCALE_DEFAULT = 100;
+export const PHOTO_SCALE_DECOR_DEFAULT = 94;
 
 export const CAPTION_SCALE_MIN = 35;
 export const CAPTION_SCALE_MAX = 100;

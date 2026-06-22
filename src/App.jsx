@@ -11,11 +11,15 @@ import {
   getEmptyPhotos,
   getEmptyPhotoFocus,
   getLayout,
+  getStripDecor,
   PHOTO_SCALE_DEFAULT,
+  PHOTO_SCALE_DECOR_DEFAULT,
+  STRIP_DECOR_OPACITY_DEFAULT,
   APP_NAME,
   APP_TAGLINE,
 } from './lib/constants';
 import { createTextOverlay, normalizeTextOverlay } from './lib/textOverlays';
+import StripDecorPicker from './components/StripDecorPicker';
 import AdBanner from './components/AdBanner';
 import './App.css';
 
@@ -24,6 +28,8 @@ export default function App() {
   const [photos, setPhotos] = useState(() => getEmptyPhotos('strip-4'));
   const [photoFocus, setPhotoFocus] = useState(() => getEmptyPhotoFocus('strip-4'));
   const [frameId, setFrameId] = useState('white');
+  const [stripDecorId, setStripDecorId] = useState('none');
+  const [stripDecorOpacity, setStripDecorOpacity] = useState(STRIP_DECOR_OPACITY_DEFAULT);
   const [filterId, setFilterId] = useState('original');
   const [textOverlays, setTextOverlays] = useState([]);
   const [selectedTextId, setSelectedTextId] = useState(null);
@@ -100,6 +106,17 @@ export default function App() {
     setSelectedTextId((prev) => (prev === id ? null : prev));
   }, []);
 
+  const handleStripDecorChange = useCallback((nextDecorId) => {
+    const wasNone = getStripDecor(stripDecorId).id === 'none';
+    const willBeNone = getStripDecor(nextDecorId).id === 'none';
+    setStripDecorId(nextDecorId);
+    if (wasNone && !willBeNone) {
+      setPhotoScale(PHOTO_SCALE_DECOR_DEFAULT);
+    } else if (!wasNone && willBeNone) {
+      setPhotoScale(PHOTO_SCALE_DEFAULT);
+    }
+  }, [stripDecorId]);
+
   const handleExport = useCallback(async () => {
     if (!isReady) return null;
     setIsExporting(true);
@@ -110,13 +127,15 @@ export default function App() {
         layoutId,
         frameId,
         filterId,
+        stripDecorId,
+        stripDecorOpacity,
         textOverlays,
         photoScale,
       });
     } finally {
       setIsExporting(false);
     }
-  }, [photos, photoFocus, layoutId, frameId, filterId, textOverlays, photoScale, isReady]);
+  }, [photos, photoFocus, layoutId, frameId, filterId, stripDecorId, stripDecorOpacity, textOverlays, photoScale, isReady]);
 
   const handleReset = () => {
     photos.forEach((src) => {
@@ -127,6 +146,8 @@ export default function App() {
     setTextOverlays([]);
     setSelectedTextId(null);
     setFrameId('white');
+    setStripDecorId('none');
+    setStripDecorOpacity(STRIP_DECOR_OPACITY_DEFAULT);
     setFilterId('original');
     setPhotoScale(PHOTO_SCALE_DEFAULT);
   };
@@ -154,6 +175,8 @@ export default function App() {
             layoutId={layoutId}
             frameId={frameId}
             filterId={filterId}
+            stripDecorId={stripDecorId}
+            stripDecorOpacity={stripDecorOpacity}
             photos={photos}
             photoFocus={photoFocus}
             textOverlays={textOverlays}
@@ -186,6 +209,16 @@ export default function App() {
           <div className="panel">
             <h2>프레임 색상</h2>
             <FramePicker selected={frameId} onChange={setFrameId} />
+          </div>
+
+          <div className="panel">
+            <h2>테두리 문구</h2>
+            <StripDecorPicker
+              selected={stripDecorId}
+              opacity={stripDecorOpacity}
+              onChange={handleStripDecorChange}
+              onOpacityChange={setStripDecorOpacity}
+            />
           </div>
 
           <div className="panel">

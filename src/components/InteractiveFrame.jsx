@@ -13,17 +13,22 @@ import {
 } from '../lib/photoCover';
 import PhotoCropModal from './PhotoCropModal';
 import FrameTextOverlay from './FrameTextOverlay';
+import StripDecorOverlay from './StripDecorOverlay';
+
 export default function InteractiveFrame({
   layoutId,
   frameId,
   filterId,
+  stripDecorId = 'none',
+  stripDecorOpacity = 85,
   photos,
   photoFocus = [],
   textOverlays = [],
   selectedTextId,
   onTextSelect,
   onTextMove,
-  photoScale = 100,  onPhotosChange,
+  photoScale = 100,
+  onPhotosChange,
   onPhotoFocusChange,
   onReorder,
 }) {
@@ -37,8 +42,9 @@ export default function InteractiveFrame({
   const layout = getLayout(layoutId);
   const frame = FRAMES.find((f) => f.id === frameId) ?? FRAMES[0];
   const { width, height } = getCanvasSize(layoutId);
-  const slots = getDisplaySlots(layoutId, photoScale);
-  const stripDivider = getStripDividerPercent(layoutId, photoScale);  const brandMark = getBrandMarkMetrics(layoutId);
+  const slots = getDisplaySlots(layoutId, photoScale, stripDecorId);
+  const stripDivider = getStripDividerPercent(layoutId, photoScale, stripDecorId);
+  const brandMark = getBrandMarkMetrics(layoutId);
   const filterStyle = getFilterStyle(filterId);
   const isDual = layout.type === 'dual-column';
 
@@ -219,6 +225,13 @@ export default function InteractiveFrame({
           />
         )}
 
+        <StripDecorOverlay
+          layoutId={layoutId}
+          frameId={frameId}
+          stripDecorId={stripDecorId}
+          stripDecorOpacity={stripDecorOpacity}
+        />
+
         {textOverlays.map((overlay) => (
           <FrameTextOverlay
             key={overlay.id}
@@ -230,11 +243,12 @@ export default function InteractiveFrame({
           />
         ))}
 
-        <span          className="frame-brand-mark"
+        <span
+          className="frame-brand-mark"
           aria-hidden="true"
           style={{
+            left: `${brandMark.leftPercent}%`,
             top: `${brandMark.topPercent}%`,
-            right: `${brandMark.rightPercent}%`,
             fontSize: `${brandMark.fontSizeCqh}cqh`,
           }}
         >
