@@ -89,6 +89,12 @@
   overflow: hidden;
 }
 
+.ad-slot__frame .adsbygoogle {
+  display: block;
+  width: 100%;
+  min-height: inherit;
+}
+
 .ad-slot__placeholder {
   display: flex;
   flex-direction: column;
@@ -133,8 +139,13 @@
 }
 
 .ad-slot--sidebar .ad-slot__placeholder {
-  min-height: 250px;
+  min-height: 80px;
   border-radius: var(--radius);
+}
+
+.ad-slot--sidebar .ad-slot__frame {
+  max-width: 300px;
+  margin: 0 auto;
 }
 
 .ad-slot--sidebar {
@@ -1381,7 +1392,7 @@
   }
 
   .ad-slot--sidebar .ad-slot__placeholder {
-    min-height: 100px;
+    min-height: 80px;
   }
 
   .preview-section {

@@ -1,9 +1,56 @@
+import { useEffect, useRef, useState } from 'react';
+import {
+  getAdSenseClient,
+  getAdSenseSlot,
+  isAdSenseConfigured,
+  loadAdSenseScript,
+  pushAdSenseSlot,
+} from '../lib/adsense';
+
+const SLOT_LAYOUT = {
+  top: {
+    sizeLabel: '728 × 90',
+    fixedSize: { width: 728, height: 90 },
+  },
+  sidebar: {
+    sizeLabel: '300 × 80',
+    fixedSize: { width: 300, height: 80 },
+  },
+};
+
 /**
- * 배너 광고 슬롯 — 실제 광고 스크립트는 .ad-slot__frame 안에 삽입하면 됩니다.
  * @param {'top' | 'sidebar'} variant
  */
 export default function AdBanner({ variant = 'top', className = '' }) {
-  const sizeLabel = variant === 'top' ? '728 × 90' : '300 × 250';
+  const frameRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const configured = isAdSenseConfigured(variant);
+  const client = getAdSenseClient();
+  const slot = getAdSenseSlot(variant);
+  const layout = SLOT_LAYOUT[variant] ?? SLOT_LAYOUT.top;
+
+  useEffect(() => {
+    if (!configured) return undefined;
+
+    let cancelled = false;
+
+    loadAdSenseScript()
+      .then(() => {
+        if (!cancelled) setReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setReady(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [configured, client]);
+
+  useEffect(() => {
+    if (!ready || !configured || !frameRef.current) return;
+    pushAdSenseSlot(frameRef.current);
+  }, [ready, configured, slot, variant]);
 
   return (
     <aside
@@ -13,11 +60,38 @@ export default function AdBanner({ variant = 'top', className = '' }) {
       data-ad-slot={variant}
     >
       <span className="ad-slot__label">광고</span>
-      <div className="ad-slot__frame">
-        <div className="ad-slot__placeholder" aria-hidden="true">
-          <span className="ad-slot__placeholder-text">배너 광고</span>
-          <span className="ad-slot__placeholder-size">{sizeLabel}</span>
-        </div>
+      <div className="ad-slot__frame" ref={frameRef}>
+        {configured && ready ? (
+          layout.fixedSize ? (
+            <ins
+              className="adsbygoogle"
+              style={{
+                display: 'inline-block',
+                width: `${layout.fixedSize.width}px`,
+                height: `${layout.fixedSize.height}px`,
+                maxWidth: '100%',
+              }}
+              data-ad-client={client}
+              data-ad-slot={slot}
+            />
+          ) : (
+            <ins
+              className="adsbygoogle"
+              style={{ display: 'block' }}
+              data-ad-client={client}
+              data-ad-slot={slot}
+              data-ad-format={layout.adFormat}
+              data-full-width-responsive={layout.fullWidthResponsive ? 'true' : 'false'}
+            />
+          )
+        ) : (
+          <div className="ad-slot__placeholder" aria-hidden="true">
+            <span className="ad-slot__placeholder-text">
+              {configured ? '광고 불러오는 중…' : '배너 광고'}
+            </span>
+            <span className="ad-slot__placeholder-size">{layout.sizeLabel}</span>
+          </div>
+        )}
       </div>
     </aside>
   );
